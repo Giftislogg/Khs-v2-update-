@@ -1,0 +1,6 @@
+{
+  "name": "Khanyisa High",
+  "description": "The official Khanyisa High School companion app. Track upcoming exam schedules, stay updated with school notices, view subject guidelines, and access educational resources.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
