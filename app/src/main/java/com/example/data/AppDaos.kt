@@ -75,8 +75,8 @@ interface PostLikeDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(like: PostLike)
 
-    @Query("DELETE FROM post_likes WHERE postId = :postId AND clientId = :clientId")
-    suspend fun removeLike(postId: Long, clientId: String)
+    @Query("DELETE FROM post_likes WHERE postId = :postId AND clientId = :clientId AND reactionType = :reactionType")
+    suspend fun removeLike(postId: Long, clientId: String, reactionType: String)
 }
 
 @Dao

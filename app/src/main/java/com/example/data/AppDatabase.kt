@@ -18,7 +18,7 @@ import kotlinx.coroutines.launch
         PostLike::class,
         Timetable::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -40,6 +40,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "khanyisa_school_database"
                 )
+                .fallbackToDestructiveMigration()
                 .addCallback(AppDatabaseCallback(scope))
                 .build()
                 INSTANCE = instance

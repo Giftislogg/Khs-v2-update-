@@ -51,7 +51,8 @@ data class PostComment(
 data class PostLike(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val postId: Long,
-    val clientId: String
+    val clientId: String,
+    val reactionType: String = "like" // "like" or "heart"
 )
 
 @Serializable

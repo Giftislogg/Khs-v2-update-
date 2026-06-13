@@ -39,7 +39,7 @@ class SchoolRepository(
     // Likes
     fun getLikesForPost(postId: Long): Flow<List<PostLike>> = postLikeDao.getLikesForPost(postId)
     suspend fun insertLike(like: PostLike) = postLikeDao.insert(like)
-    suspend fun removeLike(postId: Long, clientId: String) = postLikeDao.removeLike(postId, clientId)
+    suspend fun removeLike(postId: Long, clientId: String, reactionType: String) = postLikeDao.removeLike(postId, clientId, reactionType)
 
     // Timetables
     suspend fun insertTimetable(timetable: Timetable) = timetableDao.insert(timetable)

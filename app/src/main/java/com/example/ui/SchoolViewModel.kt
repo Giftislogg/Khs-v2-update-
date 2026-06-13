@@ -62,28 +62,34 @@ class SchoolViewModel(private val repository: SchoolRepository) : ViewModel() {
         return repository.getLikesForPost(postId)
     }
 
-    fun toggleLike(postId: Long) {
+    fun toggleReaction(postId: Long, reactionType: String) {
         viewModelScope.launch {
             val currentLikes = repository.getLikesForPost(postId).first()
-            val existingLike = currentLikes.find { it.clientId == clientId }
-            if (existingLike != null) {
-                repository.removeLike(postId, clientId)
+            val existingReaction = currentLikes.find { it.clientId == clientId && it.reactionType == reactionType }
+            if (existingReaction != null) {
+                repository.removeLike(postId, clientId, reactionType)
             } else {
                 repository.insertLike(
                     PostLike(
                         postId = postId,
-                        clientId = clientId
+                        clientId = clientId,
+                        reactionType = reactionType
                     )
                 )
             }
         }
     }
 
+    fun toggleLike(postId: Long) {
+        toggleReaction(postId, "like")
+    }
+
     // Admin/Manage Functions
-    fun addAnnouncement(title: String, content: String, category: String = "general") {
+    fun addAnnouncement(title: String, content: String, category: String = "general", id: Long = 0) {
         viewModelScope.launch {
             repository.insertAnnouncement(
                 Announcement(
+                    id = id,
                     title = title,
                     content = content,
                     category = category
@@ -98,10 +104,11 @@ class SchoolViewModel(private val repository: SchoolRepository) : ViewModel() {
         }
     }
 
-    fun addEvent(title: String, description: String, date: String, location: String, imageUrls: String = "") {
+    fun addEvent(title: String, description: String, date: String, location: String, imageUrls: String = "", id: Long = 0) {
         viewModelScope.launch {
             repository.insertEvent(
                 Event(
+                    id = id,
                     title = title,
                     description = description,
                     eventDate = date,
@@ -118,10 +125,11 @@ class SchoolViewModel(private val repository: SchoolRepository) : ViewModel() {
         }
     }
 
-    fun addPost(title: String, content: String, category: String, imageUrls: String = "") {
+    fun addPost(title: String, content: String, category: String, imageUrls: String = "", id: Long = 0) {
         viewModelScope.launch {
             repository.insertPost(
                 Post(
+                    id = id,
                     title = title,
                     content = content,
                     category = category,
@@ -137,10 +145,11 @@ class SchoolViewModel(private val repository: SchoolRepository) : ViewModel() {
         }
     }
 
-    fun addTimetable(title: String, type: String, grade: String, imageUrl: String) {
+    fun addTimetable(title: String, type: String, grade: String, imageUrl: String, id: Long = 0) {
         viewModelScope.launch {
             repository.insertTimetable(
                 Timetable(
+                    id = id,
                     title = title,
                     type = type,
                     grade = grade,
