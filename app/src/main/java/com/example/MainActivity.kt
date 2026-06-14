@@ -5,6 +5,7 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -23,6 +24,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -279,7 +281,7 @@ fun MainAppContent() {
                         ) {
                             AsyncImage(
                                 model = ImageRequest.Builder(LocalContext.current)
-                                    .data("file:///android_asset/supabase/av_1.jpg")
+                                    .data(R.drawable.school_logo)
                                     .crossfade(true)
                                     .build(),
                                 contentDescription = "School Logo",
@@ -434,7 +436,7 @@ fun MainAppContent() {
                             ) {
                                 AsyncImage(
                                     model = ImageRequest.Builder(LocalContext.current)
-                                        .data("file:///android_asset/supabase/av_1.jpg")
+                                        .data(R.drawable.school_logo)
                                         .crossfade(true)
                                         .build(),
                                     contentDescription = "Downtown Lobby logo",
@@ -484,11 +486,22 @@ fun MainAppContent() {
                                 )
 
                                 if (unreadNoticesCount > 0) {
+                                    val pulseTransition = rememberInfiniteTransition(label = "pulse")
+                                    val pulseScale by pulseTransition.animateFloat(
+                                        initialValue = 0.95f,
+                                        targetValue = 1.25f,
+                                        animationSpec = infiniteRepeatable(
+                                            animation = tween(1200, easing = FastOutSlowInEasing),
+                                            repeatMode = RepeatMode.Reverse
+                                        ),
+                                        label = "scale"
+                                    )
                                     Box(
                                         modifier = Modifier
                                             .align(Alignment.TopEnd)
                                             .offset(x = 6.dp, y = (-6).dp)
                                             .size(16.dp)
+                                            .graphicsLayer(scaleX = pulseScale, scaleY = pulseScale)
                                             .clip(CircleShape)
                                             .background(
                                                 Brush.horizontalGradient(
@@ -978,8 +991,18 @@ fun QuickAccessCard(
 fun SATermProgressCard() {
     var isAutomatic by remember { mutableStateOf(true) }
     
-    // Live automatic calculations
-    val today = remember { Date() }
+    // Live automatic calculations with year-correction fallback for 2026 term tables
+    val today = remember {
+        val actualToday = Date()
+        val calendar = java.util.Calendar.getInstance()
+        calendar.time = actualToday
+        if (calendar.get(java.util.Calendar.YEAR) != 2026) {
+            calendar.set(java.util.Calendar.YEAR, 2026)
+            calendar.time
+        } else {
+            actualToday
+        }
+    }
     val autoTerm = remember(today) { SchoolCalendarHelper.getActiveTermOrUpcoming(today) }
     val autoProgressInfo = remember(autoTerm, today) { SchoolCalendarHelper.calculateProgressForDate(autoTerm, today) }
 
@@ -1111,16 +1134,31 @@ fun SATermProgressCard() {
                 )
             }
 
-            // Custom styled progress bar
-            LinearProgressIndicator(
-                progress = finalProgressInfo.progressPercentage,
+            // Premium thicker tactile progress indicator with glow and gold horizontal gradient
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(10.dp)
-                    .clip(CircleShape),
-                color = BrandGold,
-                trackColor = Color.White.copy(alpha = 0.15f)
-            )
+                    .height(14.dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.12f))
+                    .border(1.dp, Color.White.copy(alpha = 0.08f), CircleShape)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .fillMaxWidth(fraction = finalProgressInfo.progressPercentage)
+                        .clip(CircleShape)
+                        .background(
+                            Brush.horizontalGradient(
+                                colors = listOf(
+                                    BrandGoldDark,
+                                    BrandGold,
+                                    BrandGoldLight
+                                )
+                            )
+                        )
+                )
+            }
 
             // Dynamic simulator controls
             AnimatedVisibility(
@@ -2126,6 +2164,7 @@ fun AdminScreen(
         var editingAnnouncement by remember { mutableStateOf<Announcement?>(null) }
         var editingPost by remember { mutableStateOf<Post?>(null) }
         var editingTimetable by remember { mutableStateOf<Timetable?>(null) }
+        var editingEvent by remember { mutableStateOf<Event?>(null) }
 
         // Form inputs
         var text1 by remember { mutableStateOf("") } // title
@@ -2138,7 +2177,7 @@ fun AdminScreen(
         var attachedImagesList by remember { mutableStateOf<List<String>>(emptyList()) }
 
         // Synchronize fields when starting an edit
-        LaunchedEffect(editingAnnouncement, editingPost, editingTimetable, adminTab) {
+        LaunchedEffect(editingAnnouncement, editingPost, editingTimetable, editingEvent, adminTab) {
             when (adminTab) {
                 "Notices" -> {
                     editingAnnouncement?.let {
@@ -2150,8 +2189,16 @@ fun AdminScreen(
                     }
                 }
                 "Events" -> {
-                    text1 = ""; text2 = ""; text3 = "2026-06-15 10:00"; text4 = "School Hall"
-                    attachedImagesList = emptyList()
+                    editingEvent?.let {
+                        text1 = it.title
+                        text2 = it.description
+                        text3 = it.eventDate
+                        text4 = it.location
+                        attachedImagesList = it.imageUrls.split(",").map { img -> img.trim() }.filter { img -> img.isNotEmpty() }
+                    } ?: run {
+                        text1 = ""; text2 = ""; text3 = "2026-06-15 10:00"; text4 = "School Hall"
+                        attachedImagesList = emptyList()
+                    }
                 }
                 "News" -> {
                     editingPost?.let {
@@ -2230,6 +2277,7 @@ fun AdminScreen(
                                 editingAnnouncement = null
                                 editingPost = null
                                 editingTimetable = null
+                                editingEvent = null
                                 text1 = ""; text2 = ""; text3 = ""; text4 = ""
                                 attachedImagesList = emptyList()
                             },
@@ -2251,7 +2299,7 @@ fun AdminScreen(
                         modifier = Modifier.padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
-                        val isEditingMode = (editingAnnouncement != null || editingPost != null || editingTimetable != null)
+                        val isEditingMode = (editingAnnouncement != null || editingPost != null || editingTimetable != null || editingEvent != null)
                         
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -2270,6 +2318,7 @@ fun AdminScreen(
                                         editingAnnouncement = null
                                         editingPost = null
                                         editingTimetable = null
+                                        editingEvent = null
                                         text1 = ""; text2 = ""; text3 = ""; text4 = ""
                                         attachedImagesList = emptyList()
                                     }
@@ -2331,6 +2380,12 @@ fun AdminScreen(
                                     label = { Text("Venue Location") }, modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(14.dp)
                                 )
+                                MediaAttachmentManagerSection(
+                                    attachedImagesList = attachedImagesList,
+                                    onImagesListChange = { attachedImagesList = it },
+                                    attachImageUrlInput = attachImageUrlInput,
+                                    onUrlInputChange = { attachImageUrlInput = it }
+                                )
                             }
                             "News" -> {
                                 OutlinedTextField(
@@ -2360,190 +2415,12 @@ fun AdminScreen(
                                         )
                                     }
                                 }
-
-                                // MULTIPLE IMAGE ATTACHMENT SECTION
-                                Divider(color = Color(0xFFEDF2F7))
-                                Text("💡 Media Attachment Manager (Multiple Images)", fontSize = 12.sp, fontWeight = FontWeight.Black, color = Color(0xFF1E293B))
-                                
-                                if (attachedImagesList.isNotEmpty()) {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .horizontalScroll(rememberScrollState())
-                                            .padding(vertical = 4.dp),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        attachedImagesList.forEachIndexed { index, imgUrl ->
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(72.dp)
-                                                    .clip(RoundedCornerShape(12.dp))
-                                                    .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(12.dp))
-                                            ) {
-                                                AsyncImage(
-                                                    model = ImageRequest.Builder(LocalContext.current)
-                                                        .data(imgUrl)
-                                                        .crossfade(true)
-                                                        .build(),
-                                                    contentDescription = "Post image $index",
-                                                    modifier = Modifier.fillMaxSize(),
-                                                    contentScale = ContentScale.Crop
-                                                )
-                                                Box(
-                                                    modifier = Modifier
-                                                        .align(Alignment.TopEnd)
-                                                        .padding(2.dp)
-                                                        .size(18.dp)
-                                                        .clip(CircleShape)
-                                                        .background(Color.Red)
-                                                        .clickable {
-                                                            attachedImagesList = attachedImagesList.filterIndexed { i, _ -> i != index }
-                                                        },
-                                                    contentAlignment = Alignment.Center
-                                                ) {
-                                                    Icon(
-                                                        imageVector = Icons.Default.Close,
-                                                        contentDescription = "Remove image",
-                                                        tint = Color.White,
-                                                        modifier = Modifier.size(10.dp)
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-                                } else {
-                                    Text("No images attached to this news block yet. Preview below:", fontSize = 11.sp, color = Color.Gray, modifier = Modifier.padding(bottom = 2.dp))
-                                }
-
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().testTag("add_image_row"),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    OutlinedTextField(
-                                        value = attachImageUrlInput,
-                                        onValueChange = { attachImageUrlInput = it },
-                                        label = { Text("Paste Image URL") },
-                                        placeholder = { Text("https://...") },
-                                        shape = RoundedCornerShape(12.dp),
-                                        modifier = Modifier.weight(1f).testTag("image_url_input"),
-                                        singleLine = true
-                                    )
-                                    Button(
-                                        onClick = {
-                                            if (attachImageUrlInput.trim().isNotEmpty()) {
-                                                attachedImagesList = attachedImagesList + attachImageUrlInput.trim()
-                                                attachImageUrlInput = ""
-                                                Toast.makeText(context, "Successfully attached custom image URL!", Toast.LENGTH_SHORT).show()
-                                            } else {
-                                                // Intelligent action: If line is blank, auto-attach a high-quality campus preset!
-                                                val defaultPresets = listOf(
-                                                    "file:///android_asset/supabase/1.jpg",
-                                                    "file:///android_asset/supabase/2.jpg",
-                                                    "file:///android_asset/supabase/3.jpg",
-                                                    "file:///android_asset/supabase/4.jpg",
-                                                    "file:///android_asset/supabase/5.jpg",
-                                                    "file:///android_asset/supabase/6.jpg"
-                                                )
-                                                val remaining = defaultPresets.filter { !attachedImagesList.contains(it) }
-                                                if (remaining.isNotEmpty()) {
-                                                    val randomPick = remaining.random()
-                                                    attachedImagesList = attachedImagesList + randomPick
-                                                    Toast.makeText(context, "No URL pasted! Grabbed a premium default campus photo.", Toast.LENGTH_SHORT).show()
-                                                } else {
-                                                    Toast.makeText(context, "All campus presets are already loaded! Enter a custom image URL.", Toast.LENGTH_SHORT).show()
-                                                }
-                                            }
-                                        },
-                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F172A)),
-                                        shape = RoundedCornerShape(12.dp),
-                                        modifier = Modifier.height(52.dp).testTag("plus_add_image_button")
-                                    ) {
-                                        Icon(imageVector = Icons.Default.Add, contentDescription = "Add image", tint = Color.White)
-                                    }
-                                }
-
-                                // Quick tap interactive preset grid cards
-                                Text("Or Tap preset cards below to attach/detach campus pictures:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 4.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                ) {
-                                    val presetsList = listOf(
-                                        "file:///android_asset/supabase/1.jpg" to "Classroom",
-                                        "file:///android_asset/supabase/2.jpg" to "Sports Field",
-                                        "file:///android_asset/supabase/3.jpg" to "School Hall",
-                                        "file:///android_asset/supabase/4.jpg" to "Tech Lab",
-                                        "file:///android_asset/supabase/5.jpg" to "Library",
-                                        "file:///android_asset/supabase/6.jpg" to "Academics"
-                                    )
-                                    presetsList.forEach { (url, label) ->
-                                        val isSelected = attachedImagesList.contains(url)
-                                        Card(
-                                            shape = RoundedCornerShape(12.dp),
-                                            border = if (isSelected) BorderStroke(2.dp, BrandGold) else BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                                            colors = CardDefaults.cardColors(containerColor = if (isSelected) Color(0xFFF8FAFC) else Color.White),
-                                            modifier = Modifier
-                                                .width(110.dp)
-                                                .clickable {
-                                                    if (isSelected) {
-                                                        attachedImagesList = attachedImagesList.filter { it != url }
-                                                        Toast.makeText(context, "Removed $label", Toast.LENGTH_SHORT).show()
-                                                    } else {
-                                                        attachedImagesList = attachedImagesList + url
-                                                        Toast.makeText(context, "Attached $label!", Toast.LENGTH_SHORT).show()
-                                                    }
-                                                }
-                                        ) {
-                                            Box(modifier = Modifier.height(85.dp).fillMaxWidth()) {
-                                                AsyncImage(
-                                                    model = ImageRequest.Builder(LocalContext.current)
-                                                        .data(url)
-                                                        .crossfade(true)
-                                                        .build(),
-                                                    contentDescription = label,
-                                                    modifier = Modifier.fillMaxSize(),
-                                                    contentScale = ContentScale.Crop
-                                                )
-                                                
-                                                // Dynamic visual indicator icon (plus/checkmark status badge)
-                                                Box(
-                                                    modifier = Modifier
-                                                        .align(Alignment.TopEnd)
-                                                        .padding(4.dp)
-                                                        .size(20.dp)
-                                                        .clip(CircleShape)
-                                                        .background(if (isSelected) Color(0xFF10B981) else Color.Black.copy(alpha = 0.5f)),
-                                                    contentAlignment = Alignment.Center
-                                                ) {
-                                                    Icon(
-                                                        imageVector = if (isSelected) Icons.Default.Check else Icons.Default.Add,
-                                                        contentDescription = "Attach status",
-                                                        tint = Color.White,
-                                                        modifier = Modifier.size(12.dp)
-                                                    )
-                                                }
-                                                
-                                                Box(
-                                                    modifier = Modifier
-                                                        .align(Alignment.BottomCenter)
-                                                        .fillMaxWidth()
-                                                        .background(Color.Black.copy(alpha = 0.6f))
-                                                        .padding(vertical = 2.dp)
-                                                ) {
-                                                    Text(
-                                                        text = label,
-                                                        fontSize = 9.sp,
-                                                        color = Color.White,
-                                                        textAlign = TextAlign.Center,
-                                                        modifier = Modifier.fillMaxWidth(),
-                                                        fontWeight = FontWeight.Bold
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
+                                MediaAttachmentManagerSection(
+                                    attachedImagesList = attachedImagesList,
+                                    onImagesListChange = { attachedImagesList = it },
+                                    attachImageUrlInput = attachImageUrlInput,
+                                    onUrlInputChange = { attachImageUrlInput = it }
+                                )
                             }
                             "Schedules" -> {
                                 OutlinedTextField(
@@ -2610,14 +2487,22 @@ fun AdminScreen(
                                         editingAnnouncement = null
                                     }
                                     "Events" -> {
+                                        val combinedImages = if (attachedImagesList.isEmpty()) {
+                                            "file:///android_asset/supabase/6.jpg"
+                                        } else {
+                                            attachedImagesList.joinToString(",")
+                                        }
                                         viewModel.addEvent(
                                             title = text1,
                                             description = text2.ifEmpty { "School Community event." },
                                             date = text3.ifEmpty { "2026-06-15 10:00" },
                                             location = text4.ifEmpty { "School Campus Grounds" },
-                                            imageUrls = "file:///android_asset/supabase/6.jpg"
+                                            imageUrls = combinedImages,
+                                            id = editingEvent?.id ?: 0L
                                         )
-                                        Toast.makeText(context, "Event added successfully!", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, if (editingEvent != null) "Event updated successfully!" else "Event added successfully!", Toast.LENGTH_SHORT).show()
+                                        editingEvent = null
+                                        attachedImagesList = emptyList()
                                     }
                                     "News" -> {
                                         val combinedImages = if (attachedImagesList.isEmpty()) {
@@ -2729,7 +2614,7 @@ fun AdminScreen(
                             InventoryActionRow(
                                 title = item.title,
                                 subtitle = "Date: ${item.eventDate} • Venue: ${item.location}",
-                                onEdit = null,
+                                onEdit = { editingEvent = item },
                                 onDelete = { viewModel.deleteEvent(item) }
                             )
                         }
@@ -2772,25 +2657,97 @@ fun AdminScreen(
 }
 
 @Composable
-fun EmptyInventoryPlaceholder(name: String) {
+fun SkeletonLoaderCard() {
+    val infiniteTransition = rememberInfiniteTransition(label = "shimmer")
+    val alpha by infiniteTransition.animateFloat(
+        initialValue = 0.35f,
+        targetValue = 0.85f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "alpha"
+    )
     Card(
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
-        modifier = Modifier.fillMaxWidth(),
-        border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+        modifier = Modifier
+            .fillMaxWidth()
+            .graphicsLayer(alpha = alpha),
+        border = BorderStroke(1.dp, Color(0xFFF1F5F9))
     ) {
         Column(
-            modifier = Modifier.padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Icon(
-                imageVector = Icons.Default.Info,
-                contentDescription = null,
-                tint = Color.LightGray,
-                modifier = Modifier.size(36.dp)
-            )
-            Text("No $name logs in database stream", color = Color.Gray, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFE2E8F0))
+                )
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(0.55f)
+                            .height(11.dp)
+                            .clip(RoundedCornerShape(3.dp))
+                            .background(Color(0xFFE2E8F0))
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(0.35f)
+                            .height(8.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(Color(0xFFF1F5F9))
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun EmptyInventoryPlaceholder(name: String) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Card(
+            shape = RoundedCornerShape(10.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC)),
+            modifier = Modifier.fillMaxWidth(),
+            border = BorderStroke(1.dp, Color(0xFFEDF2F7))
+        ) {
+            Row(
+                modifier = Modifier.padding(10.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Info,
+                    contentDescription = null,
+                    tint = BrandGold,
+                    modifier = Modifier.size(16.dp)
+                )
+                Text(
+                    text = "Live $name database stream cached. Ready to add logs...",
+                    color = Color(0xFF64748B),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+        repeat(2) {
+            SkeletonLoaderCard()
         }
     }
 }
@@ -2885,3 +2842,207 @@ fun h2Decoration(text: String) {
 }
 
 fun String.blankValid() = this.trim().isEmpty()
+
+@Composable
+fun ProfileRow(title: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(title, fontSize = 12.sp, color = Color.LightGray)
+        Text(value, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+    }
+}
+
+@Composable
+fun MediaAttachmentManagerSection(
+    attachedImagesList: List<String>,
+    onImagesListChange: (List<String>) -> Unit,
+    attachImageUrlInput: String,
+    onUrlInputChange: (String) -> Unit
+) {
+    val context = LocalContext.current
+    
+    Divider(color = Color(0xFFEDF2F7))
+    Text("💡 Media Attachment Manager (Multiple Images)", fontSize = 12.sp, fontWeight = FontWeight.Black, color = Color(0xFF1E293B))
+    
+    if (attachedImagesList.isNotEmpty()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            attachedImagesList.forEachIndexed { index, imgUrl ->
+                Box(
+                    modifier = Modifier
+                        .size(72.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(12.dp))
+                ) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(imgUrl)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = "Post image $index",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(2.dp)
+                            .size(18.dp)
+                            .clip(CircleShape)
+                            .background(Color.Red)
+                            .clickable {
+                                onImagesListChange(attachedImagesList.filterIndexed { i, _ -> i != index })
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Remove image",
+                            tint = Color.White,
+                            modifier = Modifier.size(10.dp)
+                        )
+                    }
+                }
+            }
+        }
+    } else {
+        Text("No images attached yet. Paste a URL or use campus presets below:", fontSize = 11.sp, color = Color.Gray, modifier = Modifier.padding(bottom = 2.dp))
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth().testTag("add_image_row"),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        OutlinedTextField(
+            value = attachImageUrlInput,
+            onValueChange = onUrlInputChange,
+            label = { Text("Paste Image URL") },
+            placeholder = { Text("https://...") },
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.weight(1f).testTag("image_url_input"),
+            singleLine = true
+        )
+        Button(
+            onClick = {
+                if (attachImageUrlInput.trim().isNotEmpty()) {
+                    onImagesListChange(attachedImagesList + attachImageUrlInput.trim())
+                    onUrlInputChange("")
+                    Toast.makeText(context, "Successfully attached custom image URL!", Toast.LENGTH_SHORT).show()
+                } else {
+                    // Intelligent action: If line is blank, auto-attach a high-quality campus preset!
+                    val defaultPresets = listOf(
+                        "file:///android_asset/supabase/1.jpg",
+                        "file:///android_asset/supabase/2.jpg",
+                        "file:///android_asset/supabase/3.jpg",
+                        "file:///android_asset/supabase/4.jpg",
+                        "file:///android_asset/supabase/5.jpg",
+                        "file:///android_asset/supabase/6.jpg"
+                    )
+                    val remaining = defaultPresets.filter { !attachedImagesList.contains(it) }
+                    if (remaining.isNotEmpty()) {
+                        val randomPick = remaining.random()
+                        onImagesListChange(attachedImagesList + randomPick)
+                        Toast.makeText(context, "Grabbed a premium default campus photo.", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(context, "All campus presets are already loaded!", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            },
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F172A)),
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.height(52.dp).testTag("plus_add_image_button")
+        ) {
+            Icon(imageVector = Icons.Default.Add, contentDescription = "Add image", tint = Color.White)
+        }
+    }
+
+    // Quick tap interactive preset grid cards
+    Text("Or Tap preset cards below to attach/detach campus pictures:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
+    Row(
+        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        val presetsList = listOf(
+            "file:///android_asset/supabase/1.jpg" to "Classroom",
+            "file:///android_asset/supabase/2.jpg" to "Sports Field",
+            "file:///android_asset/supabase/3.jpg" to "School Hall",
+            "file:///android_asset/supabase/4.jpg" to "Tech Lab",
+            "file:///android_asset/supabase/5.jpg" to "Library",
+            "file:///android_asset/supabase/6.jpg" to "Academics"
+        )
+        presetsList.forEach { (url, label) ->
+            val isSelected = attachedImagesList.contains(url)
+            Card(
+                shape = RoundedCornerShape(12.dp),
+                border = if (isSelected) BorderStroke(2.dp, BrandGold) else BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                colors = CardDefaults.cardColors(containerColor = if (isSelected) Color(0xFFF8FAFC) else Color.White),
+                modifier = Modifier
+                    .width(110.dp)
+                    .clickable {
+                        if (isSelected) {
+                            onImagesListChange(attachedImagesList.filter { it != url })
+                            Toast.makeText(context, "Removed $label", Toast.LENGTH_SHORT).show()
+                        } else {
+                            onImagesListChange(attachedImagesList + url)
+                            Toast.makeText(context, "Attached $label!", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+            ) {
+                Box(modifier = Modifier.height(85.dp).fillMaxWidth()) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(url)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = label,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                    
+                    // Dynamic visual indicator icon (plus/checkmark status badge)
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(4.dp)
+                            .size(20.dp)
+                            .clip(CircleShape)
+                            .background(if (isSelected) Color(0xFF10B981) else Color.Black.copy(alpha = 0.5f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = if (isSelected) Icons.Default.Check else Icons.Default.Add,
+                            contentDescription = "Attach status",
+                            tint = Color.White,
+                            modifier = Modifier.size(12.dp)
+                        )
+                    }
+                    
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            .background(Color.Black.copy(alpha = 0.6f))
+                            .padding(vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = label,
+                            fontSize = 9.sp,
+                            color = Color.White,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth(),
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
